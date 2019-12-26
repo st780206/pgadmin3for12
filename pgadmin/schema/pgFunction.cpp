@@ -272,8 +272,14 @@ wxString pgFunction::GetFullName()
 
 wxString pgProcedure::GetFullName()
 {
-	if (GetArgSigList().IsEmpty())
-		return GetName();
+	if (GetArgSigList().IsEmpty()) {
+		if (GetConnection()->BackendMinimumVersion(12, 0)) {
+			return GetName() + wxT("(") + GetArgSigList() + wxT(")");
+		}
+		else {
+			return GetName();
+		}
+	}
 	else
 		return GetName() + wxT("(") + GetArgSigList() + wxT(")");
 }
@@ -448,22 +454,30 @@ void pgFunction::ShowHint(frmMain *form, bool force)
 
 wxString pgProcedure::GetSql(ctlTree *browser)
 {
-	if (!GetConnection()->EdbMinimumVersion(8, 0))
-		return pgFunction::GetSql(browser);
+	if (!GetConnection()->BackendMinimumVersion(12, 0)) {
+		if (!GetConnection()->EdbMinimumVersion(8, 0))
+			return pgFunction::GetSql(browser);
+	}
 
 	if (sql.IsNull())
 	{
 		wxString qtName, qtSig;
 
-		if (GetArgListWithNames().IsEmpty())
-		{
-			qtName = GetQuotedFullIdentifier();
-			qtSig = GetQuotedFullIdentifier();
+		if (GetConnection()->BackendMinimumVersion(12, 0)) {
+			qtName = GetQuotedFullIdentifier() + wxT("(") + GetArgListWithNames(true) + wxT(")");
+			qtSig = GetQuotedFullIdentifier() + wxT("(") + GetArgSigList() + wxT(")");
 		}
-		else
-		{
-			qtName = GetQuotedFullIdentifier() + wxT("(") + GetArgListWithNames() + wxT(")");
-			qtSig = GetQuotedFullIdentifier()  + wxT("(") + GetArgSigList() + wxT(")");
+		else {
+			if (GetArgListWithNames().IsEmpty())
+			{
+				qtName = GetQuotedFullIdentifier();
+				qtSig = GetQuotedFullIdentifier();
+			}
+			else
+			{
+				qtName = GetQuotedFullIdentifier() + wxT("(") + GetArgListWithNames() + wxT(")");
+				qtSig = GetQuotedFullIdentifier() + wxT("(") + GetArgSigList() + wxT(")");
+			}
 		}
 
 		sql = wxT("-- Procedure: ") + qtSig + wxT("\n\n")
@@ -471,10 +485,31 @@ wxString pgProcedure::GetSql(ctlTree *browser)
 		      + wxT("\n\nCREATE OR REPLACE PROCEDURE ") + qtName;
 
 
-		sql += wxT(" AS")
-		       + GetSource()
-		       + wxT("\n\n")
-		       + GetGrant(wxT("X"), wxT("PROCEDURE ") + qtSig);
+		if (GetConnection()->BackendMinimumVersion(12, 0)) {
+			sql += wxT(" AS\n");
+
+			if (GetLanguage().IsSameAs(wxT("C"), false))
+			{
+				sql += qtDbString(GetBin()) + wxT(", ") + qtDbString(GetSource());
+			}
+			else
+			{
+				sql += qtDbStringDollar(GetSource());
+			}
+			sql += wxT("\n  LANGUAGE ") + GetLanguage() + wxT(" ");
+
+			if (!sql.Strip(wxString::both).EndsWith(wxT(";")))
+				sql += wxT(";");
+
+		}
+		else {
+
+			sql += wxT(" AS\n")
+				   + GetSource()
+				   + wxT("\n\n")
+				   + GetGrant(wxT("X"), wxT("PROCEDURE ") + qtSig);
+
+		}
 
 		if (!GetComment().IsNull())
 		{
@@ -489,10 +524,20 @@ wxString pgProcedure::GetSql(ctlTree *browser)
 
 bool pgProcedure::DropObject(wxFrame *frame, ctlTree *browser, bool cascaded)
 {
-	if (!GetConnection()->EdbMinimumVersion(8, 0))
-		return pgFunction::DropObject(frame, browser, cascaded);
+	wxString sql;
 
-	wxString sql = wxT("DROP PROCEDURE ") + this->GetSchema()->GetQuotedIdentifier() + wxT(".") + this->GetQuotedIdentifier();
+	if (GetConnection()->BackendMinimumVersion(12, 0)) {
+		sql = wxT("DROP PROCEDURE ") + this->GetSchema()->GetQuotedIdentifier() + wxT(".") + this->GetQuotedIdentifier() + wxT("(") + GetArgSigList() + wxT(")");
+	}
+	else {
+
+		if (!GetConnection()->EdbMinimumVersion(8, 0))
+			return pgFunction::DropObject(frame, browser, cascaded);
+
+		sql = wxT("DROP PROCEDURE ") + this->GetSchema()->GetQuotedIdentifier() + wxT(".") + this->GetQuotedIdentifier();
+
+	}
+
 	return GetDatabase()->ExecuteVoid(sql);
 }
 
@@ -642,6 +687,8 @@ pgFunction *pgFunctionFactory::AppendFunctions(pgObject *obj, pgSchema *schema, 
 
 	pgFunction *function = 0;
 	wxString argNamesCol, argDefsCol, proConfigCol, proType, seclab;
+	wxString tempSqlStr;
+
 	if (obj->GetConnection()->BackendMinimumVersion(8, 0))
 		argNamesCol = wxT("proargnames, ");
 	if (obj->GetConnection()->HasFeature(FEATURE_FUNCTION_DEFAULTS) && !obj->GetConnection()->BackendMinimumVersion(8, 4))
@@ -675,21 +722,62 @@ pgFunction *pgFunctionFactory::AppendFunctions(pgObject *obj, pgSchema *schema, 
 		                       wxT("  LEFT OUTER JOIN pg_description des ON (des.objoid=pr.oid AND des.classoid='pg_proc'::regclass)\n")
 		                       + restriction +
 		                       wxT(" ORDER BY proname"));
+
+		//tempSqlStr = wxT("SELECT pr.oid, pr.xmin, pr.*, ");
+
+		//if (obj->GetConnection()->BackendMinimumVersion(12, 0)) {
+		//	tempSqlStr += wxT("CASE WHEN prokind='w' THEN true ELSE false END AS proiswindow, ")
+		//		wxT("CASE WHEN prokind='p' THEN '1' ELSE '0' END AS protype, ");
+		//}
+
+		//tempSqlStr += wxT("format_type(TYP.oid, NULL) AS typname, typns.nspname AS typnsp, lanname, ") +
+		//	argNamesCol + argDefsCol + proConfigCol + proType +
+		//	wxT("       pg_get_userbyid(proowner) as funcowner, description") + seclab + wxT("\n")
+		//	wxT("  FROM pg_proc pr\n")
+		//	wxT("  JOIN pg_type typ ON typ.oid=prorettype\n")
+		//	wxT("  JOIN pg_namespace typns ON typns.oid=typ.typnamespace\n")
+		//	wxT("  JOIN pg_language lng ON lng.oid=prolang\n")
+		//	wxT("  LEFT OUTER JOIN pg_description des ON (des.objoid=pr.oid AND des.classoid='pg_proc'::regclass)\n")
+		//	+ restriction +
+		//	wxT(" ORDER BY proname");
+
+		//functions = obj->GetDatabase()->ExecuteSet(tempSqlStr);
 	}
 	else
 	{
 		// new code for !Greenplum
-		functions = obj->GetDatabase()->ExecuteSet(
-		                       wxT("SELECT pr.oid, pr.xmin, pr.*, pg_get_function_result(pr.oid) AS typname, typns.nspname AS typnsp, lanname, ") +
-		                       argNamesCol  + argDefsCol + proConfigCol + proType +
-		                       wxT("       pg_get_userbyid(proowner) as funcowner, description") + seclab + wxT("\n")
-		                       wxT("  FROM pg_proc pr\n")
-		                       wxT("  JOIN pg_type typ ON typ.oid=prorettype\n")
-		                       wxT("  JOIN pg_namespace typns ON typns.oid=typ.typnamespace\n")
-		                       wxT("  JOIN pg_language lng ON lng.oid=prolang\n")
-		                       wxT("  LEFT OUTER JOIN pg_description des ON (des.objoid=pr.oid AND des.classoid='pg_proc'::regclass)\n")
-		                       + restriction +
-		                       wxT(" ORDER BY proname"));
+		//functions = obj->GetDatabase()->ExecuteSet(
+		//                       wxT("SELECT pr.oid, pr.xmin, pr.*, pg_get_function_result(pr.oid) AS typname, typns.nspname AS typnsp, lanname, ") +
+		//                       argNamesCol  + argDefsCol + proConfigCol + proType +
+		//                       wxT("       pg_get_userbyid(proowner) as funcowner, description") + seclab + wxT("\n")
+		//                       wxT("  FROM pg_proc pr\n")
+		//                       wxT("  JOIN pg_type typ ON typ.oid=prorettype\n")
+		//                       wxT("  JOIN pg_namespace typns ON typns.oid=typ.typnamespace\n")
+		//                       wxT("  JOIN pg_language lng ON lng.oid=prolang\n")
+		//                       wxT("  LEFT OUTER JOIN pg_description des ON (des.objoid=pr.oid AND des.classoid='pg_proc'::regclass)\n")
+		//                       + restriction +
+		//                       wxT(" ORDER BY proname"));
+
+		tempSqlStr = wxT("SELECT pr.oid, pr.xmin, pr.*, ");
+
+		if (obj->GetConnection()->BackendMinimumVersion(12, 0)) {
+			tempSqlStr += wxT("CASE WHEN prokind='w' THEN true ELSE false END AS proiswindow, ")
+			wxT("CASE WHEN prokind='p' THEN '1' ELSE '0' END AS protype, ");
+		}
+
+		tempSqlStr += wxT("pg_get_function_result(pr.oid) AS typname, typns.nspname AS typnsp, lanname, ") +
+			argNamesCol + argDefsCol + proConfigCol + proType +
+			wxT("       pg_get_userbyid(proowner) as funcowner, description") + seclab + wxT("\n")
+			wxT("  FROM pg_proc pr\n")
+			wxT("  JOIN pg_type typ ON typ.oid=prorettype\n")
+			wxT("  JOIN pg_namespace typns ON typns.oid=typ.typnamespace\n")
+			wxT("  JOIN pg_language lng ON lng.oid=prolang\n")
+			wxT("  LEFT OUTER JOIN pg_description des ON (des.objoid=pr.oid AND des.classoid='pg_proc'::regclass)\n")
+			+ restriction +
+			wxT(" ORDER BY proname");
+
+		functions = obj->GetDatabase()->ExecuteSet(tempSqlStr);
+
 	}
 
 	pgSet *types = obj->GetDatabase()->ExecuteSet(wxT(
@@ -712,16 +800,23 @@ pgFunction *pgFunctionFactory::AppendFunctions(pgObject *obj, pgSchema *schema, 
 			wxString lanname = functions->GetVal(wxT("lanname"));
 			wxString typname = functions->GetVal(wxT("typname"));
 
-			// Is this an EDB Stored Procedure?
-			if (obj->GetConnection()->EdbMinimumVersion(8, 1))
-			{
+			if (obj->GetConnection()->BackendMinimumVersion(12, 0)) {
 				wxString protype = functions->GetVal(wxT("protype"));
 				if (protype == wxT("1"))
 					isProcedure = true;
 			}
-			else if (obj->GetConnection()->EdbMinimumVersion(8, 0) &&
-			         lanname == wxT("edbspl") && typname == wxT("void"))
-				isProcedure = true;
+			else {
+				// Is this an EDB Stored Procedure?
+				if (obj->GetConnection()->EdbMinimumVersion(8, 1))
+				{
+					wxString protype = functions->GetVal(wxT("protype"));
+					if (protype == wxT("1"))
+						isProcedure = true;
+				}
+				else if (obj->GetConnection()->EdbMinimumVersion(8, 0) &&
+					lanname == wxT("edbspl") && typname == wxT("void"))
+					isProcedure = true;
+			}
 
 			// Create the new object
 			if (isProcedure)
@@ -749,9 +844,15 @@ pgFunction *pgFunctionFactory::AppendFunctions(pgObject *obj, pgSchema *schema, 
 					getArrayFromCommaSeparatedList(tmp.Mid(1, tmp.Length() - 2), argNamesArray);
 			}
 
-			// EDB 8.0 had modes in pg_proc.proargdirs
-			if (!obj->GetConnection()->EdbMinimumVersion(8, 1) && isProcedure)
-				argModesTkz.SetString(functions->GetVal(wxT("proargdirs")));
+			if (!obj->GetConnection()->BackendMinimumVersion(12, 0)) {
+				// EDB 8.0 had modes in pg_proc.proargdirs
+				if (!obj->GetConnection()->EdbMinimumVersion(8, 1) && isProcedure)
+					argModesTkz.SetString(functions->GetVal(wxT("proargdirs")));
+			}
+
+			if (obj->GetConnection()->BackendMinimumVersion(12, 0)) {
+				function->iSetProcType(functions->GetLong(wxT("protype")));
+			}
 
 			if (obj->GetConnection()->EdbMinimumVersion(8, 1))
 				function->iSetProcType(functions->GetLong(wxT("protype")));
@@ -1060,9 +1161,21 @@ wxString pgProcedure::GetExecSql(ctlTree *browser)
 
 pgObject *pgFunctionFactory::CreateObjects(pgCollection *collection, ctlTree *browser, const wxString &restr)
 {
-	wxString funcRestriction = wxT(
-	                               " WHERE proisagg = FALSE AND pronamespace = ") + NumToStr(collection->GetSchema()->GetOid())
-	                           + wxT("::oid\n   AND typname NOT IN ('trigger', 'event_trigger') \n");
+	//wxString funcRestriction = wxT(
+	//                               " WHERE proisagg = FALSE AND pronamespace = ") + NumToStr(collection->GetSchema()->GetOid())
+	//                           + wxT("::oid\n   AND typname NOT IN ('trigger', 'event_trigger') \n");
+
+	wxString funcRestriction = wxT("");
+	if (collection->GetConnection()->BackendMinimumVersion(12, 0)) {
+		funcRestriction += wxT(
+			               " WHERE prokind<>'a' AND prokind<>'p' AND pronamespace = ") + NumToStr(collection->GetSchema()->GetOid())
+			              + wxT("::oid\n   AND typname NOT IN ('trigger', 'event_trigger') \n");
+	}
+	else {
+		funcRestriction += wxT(
+			" WHERE proisagg = FALSE AND pronamespace = ") + NumToStr(collection->GetSchema()->GetOid())
+			+ wxT("::oid\n   AND typname NOT IN ('trigger', 'event_trigger') \n");
+	}
 
 	if (collection->GetConnection()->EdbMinimumVersion(8, 1))
 		funcRestriction += wxT("   AND NOT (lanname = 'edbspl' AND protype = '1')\n");
@@ -1081,10 +1194,22 @@ pgCollection *pgFunctionFactory::CreateCollection(pgObject *obj)
 
 pgObject *pgTriggerFunctionFactory::CreateObjects(pgCollection *collection, ctlTree *browser, const wxString &restr)
 {
-	wxString funcRestriction = wxT(
-	                               " WHERE proisagg = FALSE AND pronamespace = ") + NumToStr(collection->GetSchema()->GetOid())
-	                           + wxT("::oid\n");
-	if(collection->GetConnection()->BackendMinimumVersion(9, 3))
+	//wxString funcRestriction = wxT(
+	//                               " WHERE proisagg = FALSE AND pronamespace = ") + NumToStr(collection->GetSchema()->GetOid())
+	//                           + wxT("::oid\n");
+	wxString funcRestriction = wxT("");
+	if (collection->GetConnection()->BackendMinimumVersion(12, 0)) {
+		funcRestriction += wxT(
+			" WHERE prokind<>'a' AND pronamespace = ") + NumToStr(collection->GetSchema()->GetOid())
+			+ wxT("::oid\n");
+	}
+	else {
+		funcRestriction += wxT(
+			" WHERE proisagg = FALSE AND pronamespace = ") + NumToStr(collection->GetSchema()->GetOid())
+			+ wxT("::oid\n");
+	}
+
+	if (collection->GetConnection()->BackendMinimumVersion(9, 3))
 	{
 		funcRestriction += wxT("AND (typname IN ('trigger', 'event_trigger') \nAND lanname NOT IN ('edbspl', 'sql', 'internal'))");
 	}
@@ -1100,9 +1225,21 @@ pgObject *pgTriggerFunctionFactory::CreateObjects(pgCollection *collection, ctlT
 
 pgObject *pgProcedureFactory::CreateObjects(pgCollection *collection, ctlTree *browser, const wxString &restr)
 {
-	wxString funcRestriction = wxT(
-	                               " WHERE proisagg = FALSE AND pronamespace = ") + NumToStr(collection->GetSchema()->GetOid())
-	                           + wxT("::oid AND lanname = 'edbspl'\n");
+	//wxString funcRestriction = wxT(
+	//                               " WHERE proisagg = FALSE AND pronamespace = ") + NumToStr(collection->GetSchema()->GetOid())
+	//                           + wxT("::oid AND lanname = 'edbspl'\n");
+
+	wxString funcRestriction = wxT("");
+	if (collection->GetConnection()->BackendMinimumVersion(12, 0)) {
+		funcRestriction += wxT(
+			" WHERE prokind='p' AND pronamespace = ") + NumToStr(collection->GetSchema()->GetOid())
+			+ wxT("::oid\n");
+	}
+	else {
+		funcRestriction += wxT(
+			" WHERE proisagg = FALSE AND pronamespace = ") + NumToStr(collection->GetSchema()->GetOid())
+			+ wxT("::oid\n AND lanname = 'edbspl'\n");
+	}
 
 	if (collection->GetConnection()->EdbMinimumVersion(8, 1))
 		funcRestriction += wxT("   AND protype = '1'\n");

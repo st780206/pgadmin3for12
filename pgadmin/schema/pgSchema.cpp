@@ -378,7 +378,9 @@ void pgSchemaBase::ShowTreeDetail(ctlTree *browser, frmMain *form, ctlListView *
 
 			if (settings->GetDisplayOption(_("Procedures")))
 			{
-				if (GetConnection()->EdbMinimumVersion(8, 0))
+				if (GetConnection()->BackendMinimumVersion(12, 0)) {
+					browser->AppendCollection(this, procedureFactory);
+				} else if (GetConnection()->EdbMinimumVersion(8, 0))
 					browser->AppendCollection(this, procedureFactory);
 			}
 

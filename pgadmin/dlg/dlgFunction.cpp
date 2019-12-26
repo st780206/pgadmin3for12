@@ -234,16 +234,20 @@ int dlgFunction::Go(bool modal)
 		if (function && !connection->EdbMinimumVersion(8, 2))
 			txtName->Disable();
 		cbOwner->Disable();
-		cbLanguage->Disable();
 		chkStrict->Disable();
 		chkWindow->Disable();
-		chkSecureDefiner->Disable();
 		chkSetof->Disable();
 		cbVolatility->Disable();
 		cbReturntype->Disable();
 		txtCost->Disable();
 		txtRows->Disable();
 		chkLeakProof->Disable();
+
+		if (!connection->BackendMinimumVersion(12, 0)) {
+			cbLanguage->Disable();
+			chkSecureDefiner->Disable();
+
+		}
 	}
 	else
 	{
@@ -893,8 +897,15 @@ wxString dlgFunction::GetSql()
 			if (!isProcedure)
 				AppendNameChange(sql, wxT("FUNCTION ") + function->GetQuotedFullIdentifier()
 				                 + wxT("(") + function->GetArgSigList() + wxT(")"));
-			else
-				AppendNameChange(sql, wxT("PROCEDURE ") + function->GetQuotedFullIdentifier());
+			else {
+				if (connection->BackendMinimumVersion(12, 0)) {
+					AppendNameChange(sql, wxT("PROCEDURE ") + function->GetQuotedFullIdentifier()
+						+ wxT("(") + function->GetArgSigList() + wxT(")"));
+				}
+				else {
+					AppendNameChange(sql, wxT("PROCEDURE ") + function->GetQuotedFullIdentifier());
+				}
+			}
 		}
 		if (didChange)
 			sql += wxT("CREATE OR REPLACE ") + objType;
@@ -911,7 +922,12 @@ wxString dlgFunction::GetSql()
 	{
 		if (isProcedure && GetArgs().IsEmpty())
 		{
-			sql += schema->GetQuotedPrefix() + qtIdent(GetName());
+			if (connection->BackendMinimumVersion(12, 0)) {
+				sql += schema->GetQuotedPrefix() + qtIdent(GetName()) + wxT("()");
+			}
+			else {
+				sql += schema->GetQuotedPrefix() + qtIdent(GetName());
+			}
 		}
 		else
 		{
@@ -939,12 +955,32 @@ wxString dlgFunction::GetSql()
 
 		if (isProcedure)
 		{
-			sql += txtSqlBox->GetText();
-			sql = sql.Trim(true);
-			if (!sql.EndsWith(wxT(";")))
+			if (connection->BackendMinimumVersion(12, 0)) {
+				if (cbLanguage->GetValue().IsSameAs(wxT("C"), false))
+				{
+					sql += qtDbString(txtObjectFile->GetValue());
+					if (!txtLinkSymbol->GetValue().IsEmpty())
+						sql += wxT(", ") + qtDbString(txtLinkSymbol->GetValue());
+				}
+				else
+				{
+					sql += qtDbStringDollar(txtSqlBox->GetText());
+				}
+
+				sql += wxT("\nLANGUAGE ") + cbLanguage->GetValue();
+
 				sql += wxT(";\n");
-			else
-				sql += wxT("\n");
+
+			}
+			else {
+
+				sql += txtSqlBox->GetText();
+				sql = sql.Trim(true);
+				if (!sql.EndsWith(wxT(";")))
+					sql += wxT(";\n");
+				else
+					sql += wxT("\n");
+			}
 		}
 		else
 		{
@@ -1008,7 +1044,12 @@ wxString dlgFunction::GetSql()
 	}
 	else if (function && isProcedure)
 	{
-		name = schema->GetQuotedPrefix() + qtIdent(name);
+		if (connection->BackendMinimumVersion(12, 0)) {
+			name = schema->GetQuotedPrefix() + qtIdent(name) + wxT("(") + GetArgs(false, true) + wxT(")");
+		}
+		else {
+			name = schema->GetQuotedPrefix() + qtIdent(name);
+		}
 		AppendOwnerChange(sql, wxT("PROCEDURE ") + name);
 		AppendSchemaChange(sql, wxT("PROCEDURE ") + name);
 	}
