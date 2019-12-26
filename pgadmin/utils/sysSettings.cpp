@@ -179,7 +179,7 @@ bool sysSettings::GetDisplayOption(const wxString &objtype, bool GetDefault)
 	else if (objtype == _("Types"))
 	{
 		engtype = wxT("Types");
-		def = false;
+		//def = false;
 	}
 	else if (objtype == _("Views"))
 		engtype = wxT("Views");
