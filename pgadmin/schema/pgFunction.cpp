@@ -273,6 +273,7 @@ wxString pgFunction::GetFullName()
 wxString pgProcedure::GetFullName()
 {
 	if (GetArgSigList().IsEmpty()) {
+/***VVVVV****/
 		if (GetConnection()->BackendMinimumVersion(12, 0)) {
 			return GetName() + wxT("(") + GetArgSigList() + wxT(")");
 		}
@@ -454,6 +455,7 @@ void pgFunction::ShowHint(frmMain *form, bool force)
 
 wxString pgProcedure::GetSql(ctlTree *browser)
 {
+/***VVVVV****/
 	if (!GetConnection()->BackendMinimumVersion(12, 0)) {
 		if (!GetConnection()->EdbMinimumVersion(8, 0))
 			return pgFunction::GetSql(browser);
@@ -463,6 +465,7 @@ wxString pgProcedure::GetSql(ctlTree *browser)
 	{
 		wxString qtName, qtSig;
 
+/***VVVVV****/
 		if (GetConnection()->BackendMinimumVersion(12, 0)) {
 			qtName = GetQuotedFullIdentifier() + wxT("(") + GetArgListWithNames(true) + wxT(")");
 			qtSig = GetQuotedFullIdentifier() + wxT("(") + GetArgSigList() + wxT(")");
@@ -485,6 +488,7 @@ wxString pgProcedure::GetSql(ctlTree *browser)
 		      + wxT("\n\nCREATE OR REPLACE PROCEDURE ") + qtName;
 
 
+/***VVVVV****/
 		if (GetConnection()->BackendMinimumVersion(12, 0)) {
 			sql += wxT(" AS\n");
 
@@ -524,6 +528,7 @@ wxString pgProcedure::GetSql(ctlTree *browser)
 
 bool pgProcedure::DropObject(wxFrame *frame, ctlTree *browser, bool cascaded)
 {
+/***VVVVV****/
 	wxString sql;
 
 	if (GetConnection()->BackendMinimumVersion(12, 0)) {
@@ -745,6 +750,7 @@ pgFunction *pgFunctionFactory::AppendFunctions(pgObject *obj, pgSchema *schema, 
 	}
 	else
 	{
+/***VVVVV****/
 		// new code for !Greenplum
 		//functions = obj->GetDatabase()->ExecuteSet(
 		//                       wxT("SELECT pr.oid, pr.xmin, pr.*, pg_get_function_result(pr.oid) AS typname, typns.nspname AS typnsp, lanname, ") +
@@ -800,6 +806,7 @@ pgFunction *pgFunctionFactory::AppendFunctions(pgObject *obj, pgSchema *schema, 
 			wxString lanname = functions->GetVal(wxT("lanname"));
 			wxString typname = functions->GetVal(wxT("typname"));
 
+/***VVVVV****/
 			if (obj->GetConnection()->BackendMinimumVersion(12, 0)) {
 				wxString protype = functions->GetVal(wxT("protype"));
 				if (protype == wxT("1"))
@@ -844,6 +851,7 @@ pgFunction *pgFunctionFactory::AppendFunctions(pgObject *obj, pgSchema *schema, 
 					getArrayFromCommaSeparatedList(tmp.Mid(1, tmp.Length() - 2), argNamesArray);
 			}
 
+/***VVVVV****/
 			if (!obj->GetConnection()->BackendMinimumVersion(12, 0)) {
 				// EDB 8.0 had modes in pg_proc.proargdirs
 				if (!obj->GetConnection()->EdbMinimumVersion(8, 1) && isProcedure)
@@ -1161,6 +1169,7 @@ wxString pgProcedure::GetExecSql(ctlTree *browser)
 
 pgObject *pgFunctionFactory::CreateObjects(pgCollection *collection, ctlTree *browser, const wxString &restr)
 {
+/***VVVVV****/
 	//wxString funcRestriction = wxT(
 	//                               " WHERE proisagg = FALSE AND pronamespace = ") + NumToStr(collection->GetSchema()->GetOid())
 	//                           + wxT("::oid\n   AND typname NOT IN ('trigger', 'event_trigger') \n");
@@ -1194,6 +1203,7 @@ pgCollection *pgFunctionFactory::CreateCollection(pgObject *obj)
 
 pgObject *pgTriggerFunctionFactory::CreateObjects(pgCollection *collection, ctlTree *browser, const wxString &restr)
 {
+/***VVVVV****/
 	//wxString funcRestriction = wxT(
 	//                               " WHERE proisagg = FALSE AND pronamespace = ") + NumToStr(collection->GetSchema()->GetOid())
 	//                           + wxT("::oid\n");
@@ -1225,6 +1235,7 @@ pgObject *pgTriggerFunctionFactory::CreateObjects(pgCollection *collection, ctlT
 
 pgObject *pgProcedureFactory::CreateObjects(pgCollection *collection, ctlTree *browser, const wxString &restr)
 {
+/***VVVVV****/
 	//wxString funcRestriction = wxT(
 	//                               " WHERE proisagg = FALSE AND pronamespace = ") + NumToStr(collection->GetSchema()->GetOid())
 	//                           + wxT("::oid AND lanname = 'edbspl'\n");

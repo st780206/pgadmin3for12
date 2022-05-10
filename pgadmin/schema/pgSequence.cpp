@@ -116,6 +116,7 @@ bool pgSequence::DropObject(wxFrame *frame, ctlTree *browser, bool cascaded)
 
 void pgSequence::UpdateValues()
 {
+/***VVVVV****/
 	//pgSet *sequence = ExecuteSet(
 	//                      wxT("SELECT last_value, min_value, max_value, cache_value, is_cycled, increment_by, is_called\n")
 	//                      wxT("  FROM ") + GetQuotedFullIdentifier());

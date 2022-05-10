@@ -234,19 +234,21 @@ int dlgFunction::Go(bool modal)
 		if (function && !connection->EdbMinimumVersion(8, 2))
 			txtName->Disable();
 		cbOwner->Disable();
+		//cbLanguage->Disable();
 		chkStrict->Disable();
 		chkWindow->Disable();
+		//chkSecureDefiner->Disable();
 		chkSetof->Disable();
 		cbVolatility->Disable();
 		cbReturntype->Disable();
 		txtCost->Disable();
 		txtRows->Disable();
 		chkLeakProof->Disable();
-
+/***VVVVV****/
 		if (!connection->BackendMinimumVersion(12, 0)) {
 			cbLanguage->Disable();
 			chkSecureDefiner->Disable();
-
+/***AAAAA****/
 		}
 	}
 	else
@@ -898,6 +900,7 @@ wxString dlgFunction::GetSql()
 				AppendNameChange(sql, wxT("FUNCTION ") + function->GetQuotedFullIdentifier()
 				                 + wxT("(") + function->GetArgSigList() + wxT(")"));
 			else {
+/***VVVVV****/
 				if (connection->BackendMinimumVersion(12, 0)) {
 					AppendNameChange(sql, wxT("PROCEDURE ") + function->GetQuotedFullIdentifier()
 						+ wxT("(") + function->GetArgSigList() + wxT(")"));
@@ -922,6 +925,7 @@ wxString dlgFunction::GetSql()
 	{
 		if (isProcedure && GetArgs().IsEmpty())
 		{
+/***VVVVV****/
 			if (connection->BackendMinimumVersion(12, 0)) {
 				sql += schema->GetQuotedPrefix() + qtIdent(GetName()) + wxT("()");
 			}
@@ -955,6 +959,7 @@ wxString dlgFunction::GetSql()
 
 		if (isProcedure)
 		{
+/***VVVVV****/
 			if (connection->BackendMinimumVersion(12, 0)) {
 				if (cbLanguage->GetValue().IsSameAs(wxT("C"), false))
 				{
@@ -1044,6 +1049,7 @@ wxString dlgFunction::GetSql()
 	}
 	else if (function && isProcedure)
 	{
+/***VVVVV****/
 		if (connection->BackendMinimumVersion(12, 0)) {
 			name = schema->GetQuotedPrefix() + qtIdent(name) + wxT("(") + GetArgs(false, true) + wxT(")");
 		}

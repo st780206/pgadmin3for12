@@ -184,6 +184,7 @@ void ctlSQLBox::SetDatabase(pgConn *db)
 	m_database = db;
 }
 
+/***VVVVV***/
 void ctlSQLBox::SetChanged(bool b)
 {
 	if (m_changed != b)
@@ -264,7 +265,7 @@ void ctlSQLBox::UpdateTitle()
 
 	SetTitle(title);
 }
-
+/***AAAAA****/
 void ctlSQLBox::OnSearchReplace(wxCommandEvent &ev)
 {
 	if (!m_dlgFindReplace)

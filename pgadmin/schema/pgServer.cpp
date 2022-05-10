@@ -902,6 +902,7 @@ int pgServer::Connect(frmMain *form, bool askPassword, const wxString &pwd, bool
 		{
 			sql += wxT(", CASE WHEN usesuper THEN pg_conf_load_time() ELSE NULL END as confloadedsince");
 		}
+/***VVVVV****/
 		if (conn->BackendMinimumVersion(10, 0))
 		{
 			sql += wxT(", CASE WHEN usesuper THEN pg_is_in_recovery() ELSE NULL END as inrecovery");
