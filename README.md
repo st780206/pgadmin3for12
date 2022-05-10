@@ -44,3 +44,11 @@ wxWidgets-2.8.12编译完成。
 vs2013打开pgadmin3 修改 realse win32编译成功
 
 https://blog.csdn.net/st780206/article/details/103473552
+
+
+pgadmin\utils\sysSettings.cpp 此文件中设置日志文件 pgadmin.log  路径是home或者文档文件夹
+
+
+
+
+
